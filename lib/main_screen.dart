@@ -35,7 +35,8 @@ class _MainScreenState extends State<MainScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       IconButton(
-                          onPressed: () {}, icon: const Icon(Icons.menu)),
+                          onPressed: () {}, 
+                          icon: const Icon(Icons.menu)),
                       Text(
                         'Name of the Song',
                         style: TextStyle(fontSize: 20, color: fontColor),
@@ -50,7 +51,9 @@ class _MainScreenState extends State<MainScreen> {
               child: Stack(
                 children: [
                   ReorderableListView(
-                    onReorder: (int oldIndex, int newIndex) {},
+                    onReorder: (int oldIndex, int newIndex) {
+                      
+                    },
                     children: [
                       ListTile(
                           key: ValueKey(1),
