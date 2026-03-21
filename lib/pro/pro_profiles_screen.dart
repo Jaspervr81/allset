@@ -1,7 +1,9 @@
-import 'package:allset/models/pro_profile_model.dart';
+import 'package:allset/models/models.dart';
 import 'package:allset/providers/dark_mode_provider.dart';
 import 'package:allset/providers/realm_provider.dart';
+import 'package:allset/providers/setlist_providers.dart';
 import 'package:allset/services/feature_flags.dart';
+import 'package:allset/services/pro_export_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:realm/realm.dart';
@@ -51,6 +53,7 @@ class _ProProfilesScreenState extends ConsumerState<ProProfilesScreen> {
               SizedBox(
                 height: 50,
                 child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     IconButton(
                       onPressed: () => Navigator.pop(context),
@@ -61,6 +64,18 @@ class _ProProfilesScreenState extends ConsumerState<ProProfilesScreen> {
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
                             color: fontColor)),
+                    IconButton(
+                      icon: const Icon(Icons.table_chart_outlined),
+                      tooltip: 'Export royalty CSV',
+                      onPressed: () {
+                        final notifier =
+                            ref.read(currentSetlistProvider.notifier);
+                        final playlist = notifier.playlist;
+                        if (playlist == null) return;
+                        ProExportService.instance
+                            .exportRoyaltyCsv(playlist, notifier.items);
+                      },
+                    ),
                   ],
                 ),
               ),

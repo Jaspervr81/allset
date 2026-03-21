@@ -116,3 +116,57 @@ final songLibraryProvider =
   final realm = ref.watch(realmProvider);
   return SongLibraryNotifier(realm);
 });
+
+// ── Folder provider (songs) ─────────────────────────────────────────────────
+
+class SongFolderNotifier extends StateNotifier<List<FolderModel>> {
+  final Realm _realm;
+
+  SongFolderNotifier(this._realm) : super([]) {
+    _load();
+  }
+
+  void _load() {
+    final folders = _realm
+        .all<FolderModel>()
+        .where((f) => f.folderType == 'songs')
+        .toList()
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    state = folders;
+  }
+
+  void addFolder(String name) {
+    final f = FolderModel(Uuid.v4(), name, 'songs', sortOrder: state.length);
+    _realm.write(() => _realm.add(f));
+    _load();
+  }
+
+  void deleteFolder(FolderModel folder) {
+    _realm.write(() => _realm.delete(folder));
+    _load();
+  }
+
+  void renameFolder(FolderModel folder, String name) {
+    _realm.write(() => folder.name = name);
+    _load();
+  }
+
+  void reorder(int oldIndex, int newIndex) {
+    final list = List<FolderModel>.from(state);
+    if (newIndex > oldIndex) newIndex -= 1;
+    final moved = list.removeAt(oldIndex);
+    list.insert(newIndex, moved);
+    _realm.write(() {
+      for (int i = 0; i < list.length; i++) {
+        list[i].sortOrder = i;
+      }
+    });
+    state = list;
+  }
+}
+
+final songFolderProvider =
+    StateNotifierProvider<SongFolderNotifier, List<FolderModel>>((ref) {
+  final realm = ref.watch(realmProvider);
+  return SongFolderNotifier(realm);
+});

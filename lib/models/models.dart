@@ -17,6 +17,7 @@ class _SongModel {
   String? publisher;
   String? proInfo;
   int sortOrder = 0;
+  Uuid? folderId;
 }
 
 // ── Playlist ──────────────────────────────────────────────────────────────────
@@ -30,6 +31,7 @@ class _PlaylistModel {
   String? city;
   bool isLocked = false;
   int sortOrder = 0;
+  Uuid? folderId;
 }
 
 // ── SetlistItem ───────────────────────────────────────────────────────────────

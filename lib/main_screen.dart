@@ -1,8 +1,10 @@
-import 'package:allset/models/setlist_item_model.dart';
-import 'package:allset/models/song_model.dart';
+import 'package:allset/models/models.dart';
 import 'package:allset/performance_screen.dart';
+import 'package:allset/providers/app_settings_provider.dart';
 import 'package:allset/providers/dark_mode_provider.dart';
+import 'package:allset/providers/realm_provider.dart';
 import 'package:allset/providers/setlist_providers.dart';
+import 'package:allset/services/export_service.dart';
 import 'package:allset/setlist_library_screen.dart';
 import 'package:allset/settings_screen.dart';
 import 'package:allset/songs_screen.dart';
@@ -22,6 +24,12 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   bool showEditBar = false;
   bool showTileParameters = false;
 
+  bool showKey = true;
+  bool showArtist = true;
+  bool showBpm = true;
+  bool showLength = false;
+  bool showNotes = false;
+
   bool isPurpleSelected = false;
   bool isRedSelected = false;
   bool isOrangeSelected = false;
@@ -36,8 +44,9 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   @override
   Widget build(BuildContext context) {
     final darkMode = ref.watch(darkModeProvider);
-    final playlist = ref.watch(currentSetlistProvider);
+    ref.watch(currentSetlistProvider); // watch version counter for rebuilds
     final notifier = ref.read(currentSetlistProvider.notifier);
+    final playlist = notifier.playlist;
     final items = notifier.items;
 
     final Color fontColor = darkMode ? Colors.white : Colors.black;
@@ -66,6 +75,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                         _titleCycleIndex =
                             (_titleCycleIndex + 1) % _titleCycleFields.length;
                       }),
+                      onLongPress: () => _editSetlistMeta(playlist, notifier),
                       child: Text(
                         _getHeaderLabel(playlist),
                         style: TextStyle(fontSize: 20, color: fontColor),
@@ -141,7 +151,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                     SizedBox(
                       width: 40,
                       child: IconButton(
-                        onPressed: () {},
+                        onPressed: () => _showExportSheet(playlist, notifier),
                         icon: const Icon(Icons.exit_to_app),
                       ),
                     ),
@@ -245,6 +255,11 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       );
     } else {
       final song = item.song;
+      final subtitleParts = <String>[];
+      if (showArtist && song?.artist != null) subtitleParts.add(song!.artist!);
+      if (showBpm && song?.bpm != null) subtitleParts.add('${song!.bpm} bpm');
+      if (showLength && song?.length != null) subtitleParts.add(_formatLength(song!.length!));
+
       tile = ListTile(
         key: ValueKey(item.id),
         onTap: isLocked ? null : () => _onItemTap(item),
@@ -255,26 +270,35 @@ class _MainScreenState extends ConsumerState<MainScreen> {
               color: color,
               fontWeight: FontWeight.bold),
         ),
-        trailing: Text(
-          song?.key ?? '',
-          style: TextStyle(
-              fontSize: fontSize, color: color, fontWeight: FontWeight.bold),
-        ),
-        subtitle: Row(
+        trailing: showKey && (song?.key ?? '').isNotEmpty
+            ? Text(
+                song!.key!,
+                style: TextStyle(
+                    fontSize: fontSize, color: color, fontWeight: FontWeight.bold),
+              )
+            : null,
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            if (song?.artist != null)
-              Text(song!.artist!,
-                  style: TextStyle(
-                      fontSize: fontSize * 0.6,
-                      color: color,
-                      fontWeight: FontWeight.w100)),
-            const SizedBox(width: 20),
-            if (song?.bpm != null)
-              Text('${song!.bpm}',
-                  style: TextStyle(
-                      fontSize: fontSize * 0.6,
-                      color: color,
-                      fontWeight: FontWeight.w100)),
+            if (subtitleParts.isNotEmpty)
+              Text(
+                subtitleParts.join('  ·  '),
+                style: TextStyle(
+                    fontSize: fontSize * 0.6,
+                    color: color,
+                    fontWeight: FontWeight.w100),
+              ),
+            if (showNotes && song?.notes != null)
+              Text(
+                song!.notes!,
+                style: TextStyle(
+                    fontSize: fontSize * 0.55,
+                    color: color.withValues(alpha: 0.7),
+                    fontStyle: FontStyle.italic),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
           ],
         ),
       );
@@ -342,9 +366,11 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       case 'artist':
         return pl.artist ?? 'Setlist';
       case 'date':
-        return pl.date != null
-            ? '${pl.date!.month}/${pl.date!.day}/${pl.date!.year}'
-            : 'Setlist';
+        if (pl.date == null) return 'Setlist';
+        final dmy = ref.read(appSettingsProvider).dateFormatDMY;
+        return dmy
+            ? '${pl.date!.day}/${pl.date!.month}/${pl.date!.year}'
+            : '${pl.date!.month}/${pl.date!.day}/${pl.date!.year}';
       case 'venue':
         return pl.venue ?? 'Setlist';
       case 'city':
@@ -355,13 +381,35 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   }
 
   Widget _buildTileParametersBar() {
+    Widget toggle(String label, bool value, VoidCallback onTap) {
+      return GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: value ? Colors.deepPurple : Colors.grey[600],
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Text(label,
+              style: const TextStyle(color: Colors.white, fontSize: 12)),
+        ),
+      );
+    }
+
     return Container(
       width: MediaQuery.of(context).size.width,
       height: 50,
-      color: Colors.grey,
-      child: const Center(
-        child: Text('Field visibility — coming soon',
-            style: TextStyle(color: Colors.white)),
+      color: Colors.grey[800],
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          toggle('KEY', showKey, () => setState(() => showKey = !showKey)),
+          toggle('ARTIST', showArtist, () => setState(() => showArtist = !showArtist)),
+          toggle('BPM', showBpm, () => setState(() => showBpm = !showBpm)),
+          toggle('LENGTH', showLength, () => setState(() => showLength = !showLength)),
+          toggle('NOTES', showNotes, () => setState(() => showNotes = !showNotes)),
+        ],
       ),
     );
   }
@@ -467,7 +515,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
 
   void _addBreak(
       CurrentSetlistNotifier notifier, List<SetlistItemModel> items) {
-    final playlistId = ref.read(currentSetlistProvider)!.id;
+    final playlistId = ref.read(currentSetlistProvider.notifier).playlist!.id;
     final item = SetlistItemModel(
       Uuid.v4(),
       'break',
@@ -500,7 +548,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       ),
     );
     if (text != null && text.isNotEmpty) {
-      final playlistId = ref.read(currentSetlistProvider)!.id;
+      final playlistId = ref.read(currentSetlistProvider.notifier).playlist!.id;
       final item = SetlistItemModel(
         Uuid.v4(),
         'note',
@@ -533,6 +581,147 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       );
       if (confirmed == true) notifier.clearAll();
     }
+  }
+
+  void _showExportSheet(
+      PlaylistModel? playlist, CurrentSetlistNotifier notifier) {
+    if (playlist == null) return;
+    final items = notifier.items;
+    final settings = ref.read(appSettingsProvider);
+    final realm = ref.read(realmProvider);
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.share),
+              title: const Text('Share as text'),
+              onTap: () {
+                Navigator.pop(context);
+                ExportService.instance
+                    .shareSetlistAsText(playlist, items);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.print),
+              title: const Text('Print / Save PDF'),
+              onTap: () {
+                Navigator.pop(context);
+                ExportService.instance
+                    .printSetlistPdf(playlist, items, settings);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.backup),
+              title: const Text('Email backup (full library)'),
+              onTap: () {
+                Navigator.pop(context);
+                ExportService.instance.exportBackupJson(realm);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _editSetlistMeta(
+      PlaylistModel? playlist, CurrentSetlistNotifier notifier) async {
+    if (playlist == null) return;
+    final titleCtrl = TextEditingController(text: playlist.title);
+    final artistCtrl = TextEditingController(text: playlist.artist ?? '');
+    final venueCtrl = TextEditingController(text: playlist.venue ?? '');
+    final cityCtrl = TextEditingController(text: playlist.city ?? '');
+    DateTime? selectedDate = playlist.date;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Edit Setlist'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                    controller: titleCtrl,
+                    decoration:
+                        const InputDecoration(labelText: 'Title')),
+                TextField(
+                    controller: artistCtrl,
+                    decoration:
+                        const InputDecoration(labelText: 'Artist')),
+                TextField(
+                    controller: venueCtrl,
+                    decoration:
+                        const InputDecoration(labelText: 'Venue')),
+                TextField(
+                    controller: cityCtrl,
+                    decoration:
+                        const InputDecoration(labelText: 'City')),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Text(selectedDate != null
+                        ? '${selectedDate!.month}/${selectedDate!.day}/${selectedDate!.year}'
+                        : 'No date'),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () async {
+                        final picked = await showDatePicker(
+                          context: ctx,
+                          initialDate: selectedDate ?? DateTime.now(),
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100),
+                        );
+                        if (picked != null) {
+                          setDialogState(() => selectedDate = picked);
+                        }
+                      },
+                      child: const Text('Pick Date'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
+            TextButton(
+              onPressed: () {
+                notifier.updateMeta((pl) {
+                  pl.title = titleCtrl.text;
+                  pl.artist = artistCtrl.text.isNotEmpty
+                      ? artistCtrl.text
+                      : null;
+                  pl.venue =
+                      venueCtrl.text.isNotEmpty ? venueCtrl.text : null;
+                  pl.city =
+                      cityCtrl.text.isNotEmpty ? cityCtrl.text : null;
+                  pl.date = selectedDate;
+                });
+                Navigator.pop(ctx);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+    titleCtrl.dispose();
+    artistCtrl.dispose();
+    venueCtrl.dispose();
+    cityCtrl.dispose();
+  }
+
+  String _formatLength(int seconds) {
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
   }
 
   void _goToSongLibrary() {

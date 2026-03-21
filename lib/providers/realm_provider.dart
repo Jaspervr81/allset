@@ -12,11 +12,12 @@ final realmProvider = Provider<Realm>((ref) {
       ProProfileModel.schema,
       AppSettingsModel.schema,
     ],
-    schemaVersion: 2,
+    schemaVersion: 3,
     migrationCallback: (migration, oldVersion) {
       if (oldVersion < 2) {
         migration.renameProperty('PlaylistModel', 'name', 'title');
       }
+      // v3 adds folderId to SongModel and PlaylistModel — no data migration needed
     },
   );
   final realm = Realm(config);

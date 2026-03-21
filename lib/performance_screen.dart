@@ -2,7 +2,9 @@ import 'dart:async';
 import 'package:allset/providers/app_settings_provider.dart';
 import 'package:allset/providers/dark_mode_provider.dart';
 import 'package:allset/providers/setlist_providers.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -16,12 +18,14 @@ class PerformanceScreen extends ConsumerStatefulWidget {
 class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
   late Timer _clockTimer;
   Timer? _metronomeTimer;
+  final AudioPlayer _audioPlayer = AudioPlayer();
   DateTime _now = DateTime.now();
   int _currentIndex = 0;
   bool _showLyrics = false;
   bool _metronomeRunning = false;
   bool _metronomeBeat = false;
   bool _showFullscreen = false;
+  CurrentSetlistNotifier? _setlistNotifier;
 
   @override
   void initState() {
@@ -29,7 +33,8 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
     _clockTimer = Timer.periodic(
         const Duration(seconds: 1), (_) => setState(() => _now = DateTime.now()));
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(currentSetlistProvider.notifier).lock(true);
+      _setlistNotifier = ref.read(currentSetlistProvider.notifier);
+      _setlistNotifier!.lock(true);
     });
   }
 
@@ -37,7 +42,8 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
   void dispose() {
     _clockTimer.cancel();
     _metronomeTimer?.cancel();
-    ref.read(currentSetlistProvider.notifier).lock(false);
+    _audioPlayer.dispose();
+    _setlistNotifier?.lock(false);
     super.dispose();
   }
 
@@ -88,6 +94,24 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
                 Expanded(
                   child: GestureDetector(
                     onTap: () => setState(() => _showFullscreen = true),
+                    onHorizontalDragEnd: (details) {
+                      if (details.primaryVelocity == null) return;
+                      if (details.primaryVelocity! < -300 &&
+                          _currentIndex < items.length - 1) {
+                        setState(() {
+                          _currentIndex++;
+                          _showLyrics = false;
+                          _stopMetronome();
+                        });
+                      } else if (details.primaryVelocity! > 300 &&
+                          _currentIndex > 0) {
+                        setState(() {
+                          _currentIndex--;
+                          _showLyrics = false;
+                          _stopMetronome();
+                        });
+                      }
+                    },
                     child: Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -242,12 +266,19 @@ class _PerformanceScreenState extends ConsumerState<PerformanceScreen> {
       setState(() => _metronomeRunning = true);
       _metronomeTimer = Timer.periodic(interval, (_) {
         if (!mounted) return;
-        setState(() => _metronomeBeat = true);
-        Future.delayed(const Duration(milliseconds: 80), () {
-          if (mounted) setState(() => _metronomeBeat = false);
-        });
+        _tick();
       });
     }
+  }
+
+  void _tick() {
+    setState(() => _metronomeBeat = true);
+    HapticFeedback.lightImpact();
+    _audioPlayer.play(AssetSource('sounds/tick.wav'),
+        volume: 1.0, mode: PlayerMode.lowLatency);
+    Future.delayed(const Duration(milliseconds: 80), () {
+      if (mounted) setState(() => _metronomeBeat = false);
+    });
   }
 
   void _stopMetronome() {

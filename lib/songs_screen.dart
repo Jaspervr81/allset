@@ -1,5 +1,5 @@
 import 'package:allset/lyrics_editor_screen.dart';
-import 'package:allset/models/song_model.dart';
+import 'package:allset/models/models.dart';
 import 'package:allset/providers/dark_mode_provider.dart';
 import 'package:allset/providers/setlist_providers.dart';
 import 'package:allset/providers/song_providers.dart';
@@ -18,6 +18,7 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
   double fontSize = 20;
   bool multiSelectMode = false;
   Uuid? expandedSongId;
+  Uuid? activeFolderId; // null = show all songs (no filter)
 
   final TextEditingController _titleCtrl = TextEditingController();
   final TextEditingController _keyCtrl = TextEditingController();
@@ -56,8 +57,17 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
     final darkMode = ref.watch(darkModeProvider);
     final libraryState = ref.watch(songLibraryProvider);
     final libraryNotifier = ref.read(songLibraryProvider.notifier);
+    final folders = ref.watch(songFolderProvider);
+    final folderNotifier = ref.read(songFolderProvider.notifier);
     final bgColor = darkMode ? Colors.black : Colors.white;
     final fontColor = darkMode ? Colors.white : Colors.black;
+
+    // Filter songs by active folder (null = all songs without a folder, or all if no folders exist)
+    final visibleSongs = activeFolderId != null
+        ? libraryState.songs.where((s) => s.folderId == activeFolderId).toList()
+        : folders.isEmpty
+            ? libraryState.songs
+            : libraryState.songs.where((s) => s.folderId == null).toList();
 
     return Scaffold(
       body: Container(
@@ -94,11 +104,18 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
                             },
                             child: Text(multiSelectMode ? 'Done' : 'Select'),
                           ),
-                          if (multiSelectMode)
+                          if (multiSelectMode) ...[
                             TextButton(
                               onPressed: () => _addSelectedToSet(libraryState),
                               child: const Text('Add to Set'),
                             ),
+                            if (folders.isNotEmpty)
+                              TextButton(
+                                onPressed: () => _moveSelectedToFolder(
+                                    libraryState, libraryNotifier, folders),
+                                child: const Text('Move'),
+                              ),
+                          ],
                         ],
                       ),
                     ],
@@ -113,37 +130,34 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
                 _buildSortBar(libraryNotifier, fontColor),
                 const Divider(),
 
+                // Folder strip
+                if (folders.isNotEmpty)
+                  _buildFolderStrip(folders, folderNotifier, fontColor),
+
                 // Song list
                 Expanded(
-                  child: libraryState.songs.isEmpty
+                  child: visibleSongs.isEmpty
                       ? Center(
                           child: Text('No songs yet',
                               style: TextStyle(color: fontColor)))
                       : ReorderableListView(
                           onReorder: (oldIndex, newIndex) {
-                            // Update sort order in Realm
-                            final songs =
-                                List<SongModel>.from(libraryState.songs);
+                            final songs = List<SongModel>.from(visibleSongs);
                             if (newIndex > oldIndex) newIndex -= 1;
                             final moved = songs.removeAt(oldIndex);
                             songs.insert(newIndex, moved);
-                            // Write sort orders
-                            final realm = ref.read(
-                                // We need Realm here — access via provider
-                                // but SongLibraryNotifier exposes updateSong
-                                // so we'll do a batch update
-                                songLibraryProvider.notifier);
                             for (int i = 0; i < songs.length; i++) {
-                              realm.updateSong(songs[i],
-                                  (s) => s.sortOrder = i);
+                              libraryNotifier.updateSong(
+                                  songs[i], (s) => s.sortOrder = i);
                             }
                           },
                           children: [
-                            for (final song in libraryState.songs)
+                            for (final song in visibleSongs)
                               _buildSongTile(
                                   song,
                                   libraryState,
                                   libraryNotifier,
+                                  folders,
                                   fontColor,
                                   darkMode),
                           ],
@@ -270,10 +284,139 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
     );
   }
 
+  Widget _buildFolderStrip(List<FolderModel> folders,
+      SongFolderNotifier folderNotifier, Color fontColor) {
+    return SizedBox(
+      height: 44,
+      child: Row(
+        children: [
+          // "All" chip
+          Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: ChoiceChip(
+              label: const Text('All'),
+              selected: activeFolderId == null,
+              onSelected: (_) => setState(() => activeFolderId = null),
+            ),
+          ),
+          // Folder chips
+          Expanded(
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: folders.length,
+              itemBuilder: (_, i) {
+                final folder = folders[i];
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: GestureDetector(
+                    onLongPress: () =>
+                        _showFolderOptions(folder, folderNotifier),
+                    child: ChoiceChip(
+                      label: Text(folder.name),
+                      selected: activeFolderId == folder.id,
+                      onSelected: (_) => setState(() =>
+                          activeFolderId = activeFolderId == folder.id
+                              ? null
+                              : folder.id),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          // Add folder button
+          IconButton(
+            icon: const Icon(Icons.create_new_folder_outlined, size: 20),
+            onPressed: () => _createFolder(folderNotifier),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _createFolder(SongFolderNotifier notifier) async {
+    final ctrl = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('New Folder'),
+        content: TextField(
+            controller: ctrl,
+            autofocus: true,
+            decoration: const InputDecoration(hintText: 'Folder name')),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, ctrl.text),
+              child: const Text('Create')),
+        ],
+      ),
+    );
+    if (name != null && name.isNotEmpty) notifier.addFolder(name);
+  }
+
+  void _showFolderOptions(
+      FolderModel folder, SongFolderNotifier notifier) async {
+    final action = await showDialog<String>(
+      context: context,
+      builder: (_) => SimpleDialog(
+        title: Text(folder.name),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'rename'),
+            child: const Text('Rename'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'delete'),
+            child: const Text('Delete folder',
+                style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'rename') {
+      final ctrl = TextEditingController(text: folder.name);
+      final name = await showDialog<String>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Rename Folder'),
+          content: TextField(controller: ctrl, autofocus: true),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(context, ctrl.text),
+                child: const Text('Save')),
+          ],
+        ),
+      );
+      if (name != null && name.isNotEmpty) notifier.renameFolder(folder, name);
+    } else if (action == 'delete') {
+      // Unassign songs from this folder before deleting
+      final songsInFolder = ref
+          .read(songLibraryProvider)
+          .songs
+          .where((s) => s.folderId == folder.id)
+          .toList();
+      for (final s in songsInFolder) {
+        ref
+            .read(songLibraryProvider.notifier)
+            .updateSong(s, (song) => song.folderId = null);
+      }
+      notifier.deleteFolder(folder);
+      if (activeFolderId == folder.id) setState(() => activeFolderId = null);
+    }
+  }
+
   Widget _buildSongTile(
     SongModel song,
     SongLibraryState state,
     SongLibraryNotifier notifier,
+    List<FolderModel> folders,
     Color fontColor,
     bool darkMode,
   ) {
@@ -342,13 +485,13 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
               ? () => notifier.toggleSelection(song.id)
               : null,
         ),
-        if (isExpanded) _buildInlineEditForm(song, notifier, fontColor),
+        if (isExpanded) _buildInlineEditForm(song, notifier, folders, fontColor),
       ],
     );
   }
 
   Widget _buildInlineEditForm(
-      SongModel song, SongLibraryNotifier notifier, Color fontColor) {
+      SongModel song, SongLibraryNotifier notifier, List<FolderModel> folders, Color fontColor) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
@@ -408,6 +551,27 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
             decoration: const InputDecoration(
                 labelText: 'Notes', border: OutlineInputBorder()),
           ),
+          const SizedBox(height: 8),
+          if (folders.isNotEmpty)
+            Row(
+              children: [
+                const Text('Folder: ', style: TextStyle(fontSize: 13)),
+                const SizedBox(width: 8),
+                DropdownButton<Uuid?>(
+                  value: song.folderId,
+                  hint: const Text('None'),
+                  items: [
+                    const DropdownMenuItem<Uuid?>(
+                        value: null, child: Text('None')),
+                    for (final f in folders)
+                      DropdownMenuItem<Uuid?>(
+                          value: f.id, child: Text(f.name)),
+                  ],
+                  onChanged: (fid) =>
+                      notifier.updateSong(song, (s) => s.folderId = fid),
+                ),
+              ],
+            ),
           const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -504,7 +668,7 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
 
   void _addSelectedToSet(SongLibraryState state) {
     final notifier = ref.read(currentSetlistProvider.notifier);
-    final playlist = ref.read(currentSetlistProvider);
+    final playlist = notifier.playlist;
     if (playlist == null) return;
     int order = notifier.items.length;
     for (final song in state.songs) {
@@ -513,6 +677,37 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
     }
     ref.read(songLibraryProvider.notifier).deselectAll();
     Navigator.pop(context);
+  }
+
+  void _moveSelectedToFolder(SongLibraryState state,
+      SongLibraryNotifier notifier, List<FolderModel> folders) async {
+    final folder = await showDialog<FolderModel?>(
+      context: context,
+      builder: (_) => SimpleDialog(
+        title: const Text('Move to Folder'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, null),
+            child: const Text('Remove from folder'),
+          ),
+          for (final f in folders)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, f),
+              child: Text(f.name),
+            ),
+        ],
+      ),
+    );
+    // dialog returns sentinel: FolderModel = move there; null = remove from folder
+    // We use a special sentinel since showDialog returns null on dismiss
+    // So we wrap: null from SimpleDialogOption = remove, dismissed = do nothing
+    // Check if user actually picked (we always get a result from SimpleDialogOption)
+    for (final song in state.songs) {
+      if (!state.selectedIds.contains(song.id)) continue;
+      notifier.updateSong(song, (s) => s.folderId = folder?.id);
+    }
+    notifier.deselectAll();
+    setState(() => multiSelectMode = false);
   }
 
   Color _songColor(String? textColor, bool darkMode) {

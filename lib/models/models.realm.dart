@@ -27,6 +27,7 @@ class SongModel extends _SongModel
     String? publisher,
     String? proInfo,
     int sortOrder = 0,
+    Uuid? folderId,
   }) {
     if (!_defaultsSet) {
       _defaultsSet = RealmObjectBase.setDefaults<SongModel>({'sortOrder': 0});
@@ -44,6 +45,7 @@ class SongModel extends _SongModel
     RealmObjectBase.set(this, 'publisher', publisher);
     RealmObjectBase.set(this, 'proInfo', proInfo);
     RealmObjectBase.set(this, 'sortOrder', sortOrder);
+    RealmObjectBase.set(this, 'folderId', folderId);
   }
 
   SongModel._();
@@ -118,6 +120,11 @@ class SongModel extends _SongModel
   set sortOrder(int value) => RealmObjectBase.set(this, 'sortOrder', value);
 
   @override
+  Uuid? get folderId => RealmObjectBase.get<Uuid>(this, 'folderId') as Uuid?;
+  @override
+  set folderId(Uuid? value) => RealmObjectBase.set(this, 'folderId', value);
+
+  @override
   Stream<RealmObjectChanges<SongModel>> get changes =>
       RealmObjectBase.getChanges<SongModel>(this);
 
@@ -143,6 +150,7 @@ class SongModel extends _SongModel
       'publisher': publisher.toEJson(),
       'proInfo': proInfo.toEJson(),
       'sortOrder': sortOrder.toEJson(),
+      'folderId': folderId.toEJson(),
     };
   }
 
@@ -164,6 +172,7 @@ class SongModel extends _SongModel
         publisher: fromEJson(ejson['publisher']),
         proInfo: fromEJson(ejson['proInfo']),
         sortOrder: fromEJson(ejson['sortOrder'], defaultValue: 0),
+        folderId: fromEJson(ejson['folderId']),
       ),
       _ => raiseInvalidEJson(ejson),
     };
@@ -186,6 +195,7 @@ class SongModel extends _SongModel
       SchemaProperty('publisher', RealmPropertyType.string, optional: true),
       SchemaProperty('proInfo', RealmPropertyType.string, optional: true),
       SchemaProperty('sortOrder', RealmPropertyType.int),
+      SchemaProperty('folderId', RealmPropertyType.uuid, optional: true),
     ]);
   }();
 
@@ -206,6 +216,7 @@ class PlaylistModel extends _PlaylistModel
     String? city,
     bool isLocked = false,
     int sortOrder = 0,
+    Uuid? folderId,
   }) {
     if (!_defaultsSet) {
       _defaultsSet = RealmObjectBase.setDefaults<PlaylistModel>({
@@ -221,6 +232,7 @@ class PlaylistModel extends _PlaylistModel
     RealmObjectBase.set(this, 'city', city);
     RealmObjectBase.set(this, 'isLocked', isLocked);
     RealmObjectBase.set(this, 'sortOrder', sortOrder);
+    RealmObjectBase.set(this, 'folderId', folderId);
   }
 
   PlaylistModel._();
@@ -267,6 +279,11 @@ class PlaylistModel extends _PlaylistModel
   set sortOrder(int value) => RealmObjectBase.set(this, 'sortOrder', value);
 
   @override
+  Uuid? get folderId => RealmObjectBase.get<Uuid>(this, 'folderId') as Uuid?;
+  @override
+  set folderId(Uuid? value) => RealmObjectBase.set(this, 'folderId', value);
+
+  @override
   Stream<RealmObjectChanges<PlaylistModel>> get changes =>
       RealmObjectBase.getChanges<PlaylistModel>(this);
 
@@ -288,6 +305,7 @@ class PlaylistModel extends _PlaylistModel
       'city': city.toEJson(),
       'isLocked': isLocked.toEJson(),
       'sortOrder': sortOrder.toEJson(),
+      'folderId': folderId.toEJson(),
     };
   }
 
@@ -304,6 +322,7 @@ class PlaylistModel extends _PlaylistModel
         city: fromEJson(ejson['city']),
         isLocked: fromEJson(ejson['isLocked'], defaultValue: false),
         sortOrder: fromEJson(ejson['sortOrder'], defaultValue: 0),
+        folderId: fromEJson(ejson['folderId']),
       ),
       _ => raiseInvalidEJson(ejson),
     };
@@ -325,6 +344,7 @@ class PlaylistModel extends _PlaylistModel
         SchemaProperty('city', RealmPropertyType.string, optional: true),
         SchemaProperty('isLocked', RealmPropertyType.bool),
         SchemaProperty('sortOrder', RealmPropertyType.int),
+        SchemaProperty('folderId', RealmPropertyType.uuid, optional: true),
       ],
     );
   }();

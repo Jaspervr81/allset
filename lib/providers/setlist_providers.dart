@@ -4,56 +4,65 @@ import 'package:allset/models/models.dart';
 import 'package:allset/providers/realm_provider.dart';
 
 // --- Active setlist (current in MainScreen) ---
+// State is a version counter — increments on every write to force UI rebuilds.
+// (Riverpod skips rebuilds when the state reference is the same object.)
 
-class CurrentSetlistNotifier extends StateNotifier<PlaylistModel?> {
+class CurrentSetlistNotifier extends StateNotifier<int> {
   final Realm _realm;
+  PlaylistModel? _playlist;
 
-  CurrentSetlistNotifier(this._realm) : super(null) {
+  CurrentSetlistNotifier(this._realm) : super(0) {
     _loadOrCreate();
   }
+
+  PlaylistModel? get playlist => _playlist;
 
   void _loadOrCreate() {
     final all = _realm.all<PlaylistModel>();
     if (all.isEmpty) {
       final pl = PlaylistModel(Uuid.v4(), '');
       _realm.write(() => _realm.add(pl));
-      state = pl;
+      _playlist = pl;
     } else {
-      state = all.first;
+      _playlist = all.first;
     }
+    state++;
   }
 
-  void load(PlaylistModel pl) => state = pl;
+  void load(PlaylistModel pl) {
+    _playlist = pl;
+    state++;
+  }
 
   void updateMeta(void Function(PlaylistModel) updates) {
-    if (state == null) return;
-    _realm.write(() => updates(state!));
-    state = state; // trigger rebuild
+    if (_playlist == null) return;
+    _realm.write(() => updates(_playlist!));
+    state++;
   }
 
   void lock(bool locked) {
-    if (state == null) return;
-    _realm.write(() => state!.isLocked = locked);
-    state = state;
+    if (_playlist == null) return;
+    _realm.write(() => _playlist!.isLocked = locked);
+    state++;
   }
 
   List<SetlistItemModel> get items {
-    if (state == null) return [];
+    if (_playlist == null) return [];
     return _realm
         .all<SetlistItemModel>()
-        .where((i) => i.playlistId == state!.id)
+        .where((i) => i.playlistId == _playlist!.id)
         .toList()
       ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
   }
 
   void addItem(SetlistItemModel item) {
     _realm.write(() => _realm.add(item));
-    state = state;
+    state++;
   }
 
   void removeItem(SetlistItemModel item) {
     _realm.write(() => _realm.delete(item));
-    state = state;
+    state++;
   }
 
   void reorder(int oldIndex, int newIndex) {
@@ -66,7 +75,7 @@ class CurrentSetlistNotifier extends StateNotifier<PlaylistModel?> {
         list[i].sortOrder = i;
       }
     });
-    state = state;
+    state++;
   }
 
   void deleteColorItems(String color) {
@@ -76,7 +85,7 @@ class CurrentSetlistNotifier extends StateNotifier<PlaylistModel?> {
         _realm.delete(item);
       }
     });
-    state = state;
+    state++;
   }
 
   void clearAll() {
@@ -86,32 +95,32 @@ class CurrentSetlistNotifier extends StateNotifier<PlaylistModel?> {
         _realm.delete(item);
       }
     });
-    state = state;
+    state++;
   }
 
   void setItemColor(SetlistItemModel item, String color) {
     _realm.write(() => item.textColor = color);
-    state = state;
+    state++;
   }
 
   void addSongItem(SongModel song, int order) {
-    if (state == null) return;
+    if (_playlist == null) return;
     final item = SetlistItemModel(
       Uuid.v4(),
       'song',
-      state!.id,
+      _playlist!.id,
       sortOrder: order,
     );
     _realm.write(() {
       _realm.add(item);
       item.song = song;
     });
-    state = state;
+    state++;
   }
 }
 
 final currentSetlistProvider =
-    StateNotifierProvider<CurrentSetlistNotifier, PlaylistModel?>((ref) {
+    StateNotifierProvider<CurrentSetlistNotifier, int>((ref) {
   final realm = ref.watch(realmProvider);
   return CurrentSetlistNotifier(realm);
 });
@@ -155,10 +164,66 @@ class SetlistLibraryNotifier extends StateNotifier<List<PlaylistModel>> {
   }
 
   void refresh() => _load();
+
+  void setFolder(PlaylistModel pl, Uuid? folderId) {
+    _realm.write(() => pl.folderId = folderId);
+    _load();
+  }
+
+  void clearFolderAssignments(Uuid folderId) {
+    final toUpdate = state.where((pl) => pl.folderId == folderId).toList();
+    _realm.write(() {
+      for (final pl in toUpdate) {
+        pl.folderId = null;
+      }
+    });
+    _load();
+  }
 }
 
 final setlistLibraryProvider =
     StateNotifierProvider<SetlistLibraryNotifier, List<PlaylistModel>>((ref) {
   final realm = ref.watch(realmProvider);
   return SetlistLibraryNotifier(realm);
+});
+
+// ── Folder provider (setlists) ───────────────────────────────────────────────
+
+class SetlistFolderNotifier extends StateNotifier<List<FolderModel>> {
+  final Realm _realm;
+
+  SetlistFolderNotifier(this._realm) : super([]) {
+    _load();
+  }
+
+  void _load() {
+    final folders = _realm
+        .all<FolderModel>()
+        .where((f) => f.folderType == 'setlists')
+        .toList()
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    state = folders;
+  }
+
+  void addFolder(String name) {
+    final f = FolderModel(Uuid.v4(), name, 'setlists', sortOrder: state.length);
+    _realm.write(() => _realm.add(f));
+    _load();
+  }
+
+  void deleteFolder(FolderModel folder) {
+    _realm.write(() => _realm.delete(folder));
+    _load();
+  }
+
+  void renameFolder(FolderModel folder, String name) {
+    _realm.write(() => folder.name = name);
+    _load();
+  }
+}
+
+final setlistFolderProvider =
+    StateNotifierProvider<SetlistFolderNotifier, List<FolderModel>>((ref) {
+  final realm = ref.watch(realmProvider);
+  return SetlistFolderNotifier(realm);
 });

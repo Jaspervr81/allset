@@ -1,3 +1,4 @@
+import 'package:allset/pro/pro_profiles_screen.dart';
 import 'package:allset/providers/app_settings_provider.dart';
 import 'package:allset/providers/dark_mode_provider.dart';
 import 'package:allset/services/feature_flags.dart';
@@ -84,6 +85,19 @@ class SettingsScreen extends ConsumerWidget {
 
                     // PDF options (Pro)
                     if (isPro) ...[
+                      const Divider(),
+                      ListTile(
+                        leading: const Icon(Icons.person_outline),
+                        title: Text('PRO Profiles',
+                            style: TextStyle(color: fontColor)),
+                        subtitle: Text('Composer / Publisher / PRO',
+                            style: TextStyle(
+                                color: fontColor.withValues(alpha: 0.6))),
+                        onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const ProProfilesScreen())),
+                      ),
                       const Divider(),
                       Padding(
                         padding: const EdgeInsets.symmetric(
