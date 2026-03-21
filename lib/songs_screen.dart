@@ -1,3 +1,4 @@
+import 'package:allset/app_theme.dart';
 import 'package:allset/lyrics_editor_screen.dart';
 import 'package:allset/models/models.dart';
 import 'package:allset/providers/dark_mode_provider.dart';
@@ -59,8 +60,8 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
     final libraryNotifier = ref.read(songLibraryProvider.notifier);
     final folders = ref.watch(songFolderProvider);
     final folderNotifier = ref.read(songFolderProvider.notifier);
-    final bgColor = darkMode ? Colors.black : Colors.white;
-    final fontColor = darkMode ? Colors.white : Colors.black;
+    final bgColor = AppTheme.bg(darkMode);
+    final fontColor = AppTheme.text(darkMode);
 
     // Filter songs by active folder (null = all songs without a folder, or all if no folders exist)
     final visibleSongs = activeFolderId != null
@@ -70,28 +71,29 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
             : libraryState.songs.where((s) => s.folderId == null).toList();
 
     return Scaffold(
-      body: Container(
-        color: bgColor,
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              children: [
-                // Header
-                SizedBox(
-                  height: 50,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      IconButton(
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.close),
-                      ),
-                      Text('Song Library',
-                          style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: fontColor)),
+      backgroundColor: bgColor,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Column(
+            children: [
+              // Header
+              SizedBox(
+                height: 56,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: Icon(Icons.close_rounded,
+                          color: AppTheme.subtext(darkMode)),
+                    ),
+                    Text('Song Library',
+                        style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: fontColor,
+                            letterSpacing: -0.3)),
                       Row(
                         children: [
                           TextButton(
@@ -139,7 +141,8 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
                   child: visibleSongs.isEmpty
                       ? Center(
                           child: Text('No songs yet',
-                              style: TextStyle(color: fontColor)))
+                              style: TextStyle(
+                                  color: AppTheme.subtext(darkMode))))
                       : ReorderableListView(
                           onReorder: (oldIndex, newIndex) {
                             final songs = List<SongModel>.from(visibleSongs);
@@ -164,7 +167,6 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
                         ),
                 ),
               ],
-            ),
           ),
         ),
       ),
@@ -250,23 +252,26 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
       final active = state.sortField == field;
       return InkWell(
         onTap: () => notifier.setSort(field),
+        borderRadius: BorderRadius.circular(8),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(label,
                   style: TextStyle(
-                      color: active ? Colors.deepPurple : fontColor,
-                      fontWeight:
-                          active ? FontWeight.bold : FontWeight.normal)),
+                      color: active
+                          ? AppTheme.accent
+                          : AppTheme.subtext(ref.read(darkModeProvider)),
+                      fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                      fontSize: 13)),
               if (active)
                 Icon(
                   state.sortAscending
-                      ? Icons.arrow_upward
-                      : Icons.arrow_downward,
-                  size: 14,
-                  color: Colors.deepPurple,
+                      ? Icons.arrow_upward_rounded
+                      : Icons.arrow_downward_rounded,
+                  size: 12,
+                  color: AppTheme.accent,
                 ),
             ],
           ),
@@ -422,30 +427,120 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
   ) {
     final isSelected = state.selectedIds.contains(song.id);
     final isExpanded = expandedSongId == song.id;
-    final color = _songColor(song.textColor, darkMode);
+    final color = AppTheme.itemColor(song.textColor, darkMode);
+    final barColor = AppTheme.itemBarColor(song.textColor);
+    final subtextColor = AppTheme.subtext(darkMode);
+    final borderColor = AppTheme.border(darkMode);
+    final surface = AppTheme.surface(darkMode);
+
+    final subtitleParts = <String>[];
+    if (song.artist != null) subtitleParts.add(song.artist!);
+    if (song.bpm != null) subtitleParts.add('${song.bpm} bpm');
 
     return Column(
       key: ValueKey(song.id),
       children: [
-        ListTile(
-          leading: multiSelectMode
-              ? Checkbox(
-                  value: isSelected,
-                  onChanged: (_) => notifier.toggleSelection(song.id),
-                )
-              : null,
-          title: Text(song.title,
-              style: TextStyle(
-                  fontSize: fontSize,
-                  color: color,
-                  fontWeight: FontWeight.bold)),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
+        Container(
+          decoration: BoxDecoration(
+            color: surface,
+            border: Border(
+                bottom: BorderSide(color: borderColor, width: 0.5)),
+          ),
+          child: Row(
             children: [
-              Text(song.key ?? '',
-                  style: TextStyle(fontSize: fontSize, color: color)),
+              // Left accent bar
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 3,
+                height: isExpanded ? 48 : 52,
+                color: barColor,
+              ),
+              // Checkbox in multi-select
+              if (multiSelectMode)
+                Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: Checkbox(
+                    value: isSelected,
+                    activeColor: AppTheme.accent,
+                    onChanged: (_) => notifier.toggleSelection(song.id),
+                  ),
+                ),
+              // Main content
+              Expanded(
+                child: InkWell(
+                  onTap: multiSelectMode
+                      ? () => notifier.toggleSelection(song.id)
+                      : null,
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.fromLTRB(12, 12, 8, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          song.title,
+                          style: TextStyle(
+                            fontSize: fontSize,
+                            color: color,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.4,
+                          ),
+                        ),
+                        if (subtitleParts.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitleParts.join('  ·  '),
+                            style: TextStyle(
+                              fontSize: fontSize * 0.6,
+                              color: subtextColor,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // Key badge
+              if ((song.key ?? '').isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 9, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: barColor == Colors.transparent
+                          ? AppTheme.surface2(darkMode)
+                          : barColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(7),
+                      border: Border.all(
+                        color: barColor == Colors.transparent
+                            ? borderColor
+                            : barColor.withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: Text(
+                      song.key!,
+                      style: TextStyle(
+                        fontSize: fontSize * 0.6,
+                        color: color,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              // Expand toggle
               IconButton(
-                icon: Icon(isExpanded ? Icons.expand_less : Icons.expand_more),
+                icon: AnimatedRotation(
+                  duration: const Duration(milliseconds: 220),
+                  turns: isExpanded ? 0.5 : 0,
+                  child: Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: subtextColor,
+                    size: 20,
+                  ),
+                ),
                 onPressed: () {
                   setState(() {
                     if (isExpanded) {
@@ -464,28 +559,18 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
               ),
             ],
           ),
-          subtitle: Row(
-            children: [
-              if (song.artist != null)
-                Text(song.artist!,
-                    style: TextStyle(
-                        fontSize: fontSize * 0.7,
-                        color: color,
-                        fontWeight: FontWeight.w100)),
-              const SizedBox(width: 16),
-              if (song.bpm != null)
-                Text('${song.bpm}',
-                    style: TextStyle(
-                        fontSize: fontSize * 0.7,
-                        color: color,
-                        fontWeight: FontWeight.w100)),
-            ],
-          ),
-          onTap: multiSelectMode
-              ? () => notifier.toggleSelection(song.id)
-              : null,
         ),
-        if (isExpanded) _buildInlineEditForm(song, notifier, folders, fontColor),
+        // Inline edit form — animates open/closed
+        AnimatedCrossFade(
+          duration: const Duration(milliseconds: 250),
+          crossFadeState: isExpanded
+              ? CrossFadeState.showFirst
+              : CrossFadeState.showSecond,
+          firstChild: isExpanded
+              ? _buildInlineEditForm(song, notifier, folders, fontColor)
+              : const SizedBox.shrink(),
+          secondChild: const SizedBox.shrink(),
+        ),
       ],
     );
   }
@@ -577,12 +662,10 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               TextButton.icon(
-                icon: const Icon(Icons.music_note),
+                icon: const Icon(Icons.music_note_rounded, size: 16),
                 label: Text(song.lyrics != null ? 'Edit Lyrics' : 'Add Lyrics'),
-                onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => LyricsEditorScreen(song: song))),
+                onPressed: () => Navigator.push(context,
+                    AppTheme.slideRight(LyricsEditorScreen(song: song))),
               ),
               Row(
                 children: [
@@ -710,16 +793,4 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
     setState(() => multiSelectMode = false);
   }
 
-  Color _songColor(String? textColor, bool darkMode) {
-    switch (textColor) {
-      case 'purple':
-        return Colors.purpleAccent;
-      case 'red':
-        return Colors.redAccent;
-      case 'orange':
-        return Colors.orangeAccent;
-      default:
-        return darkMode ? Colors.white : Colors.black;
-    }
-  }
 }
