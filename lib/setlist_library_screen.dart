@@ -1,3 +1,4 @@
+import 'package:allset/app_theme.dart';
 import 'package:allset/models/models.dart';
 import 'package:allset/providers/app_settings_provider.dart';
 import 'package:allset/providers/dark_mode_provider.dart';
@@ -26,8 +27,8 @@ class _SetlistLibraryScreenState extends ConsumerState<SetlistLibraryScreen> {
     final folders = ref.watch(setlistFolderProvider);
     final folderNotifier = ref.read(setlistFolderProvider.notifier);
     final dateFormatDMY = ref.watch(appSettingsProvider).dateFormatDMY;
-    final bgColor = darkMode ? Colors.black : Colors.white;
-    final fontColor = darkMode ? Colors.white : Colors.black;
+    final bgColor = AppTheme.bg(darkMode);
+    final fontColor = AppTheme.text(darkMode);
 
     final visibleSetlists = activeFolderId != null
         ? setlists.where((pl) => pl.folderId == activeFolderId).toList()
@@ -36,32 +37,39 @@ class _SetlistLibraryScreenState extends ConsumerState<SetlistLibraryScreen> {
             : setlists.where((pl) => pl.folderId == null).toList();
 
     return Scaffold(
-      body: Container(
-        color: bgColor,
-        child: SafeArea(
-          child: Column(
-            children: [
-              SizedBox(
-                height: 50,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close),
-                    ),
-                    Text('Setlists',
-                        style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: fontColor)),
-                    IconButton(
-                      onPressed: () => _createNew(notifier),
-                      icon: const Icon(Icons.add),
-                    ),
-                  ],
-                ),
+      backgroundColor: bgColor,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Container(
+              height: 56,
+              decoration: BoxDecoration(
+                color: AppTheme.surface(darkMode),
+                border: Border(
+                    bottom: BorderSide(
+                        color: AppTheme.border(darkMode), width: 0.5)),
               ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: Icon(Icons.close_rounded,
+                        color: AppTheme.subtext(darkMode)),
+                  ),
+                  Text('Setlists',
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: fontColor,
+                          letterSpacing: -0.3)),
+                  IconButton(
+                    onPressed: () => _createNew(notifier),
+                    icon: Icon(Icons.add_rounded, color: AppTheme.accent),
+                  ),
+                ],
+              ),
+            ),
 
               // Folder strip
               if (folders.isNotEmpty)
@@ -98,8 +106,7 @@ class _SetlistLibraryScreenState extends ConsumerState<SetlistLibraryScreen> {
                         ],
                       ),
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );
@@ -290,27 +297,55 @@ class _SetlistTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final fontColor = darkMode ? Colors.white : Colors.black;
+    final textColor = AppTheme.text(darkMode);
+    final subtextColor = AppTheme.subtext(darkMode);
+    final borderColor = AppTheme.border(darkMode);
+    final surface = AppTheme.surface(darkMode);
     final label = _label();
     final sub = _subtitle();
 
-    return ListTile(
-      title: Text(label,
-          style: TextStyle(color: fontColor, fontWeight: FontWeight.bold)),
-      subtitle: sub.isNotEmpty
-          ? Text(sub, style: TextStyle(color: fontColor.withValues(alpha: 0.6)))
-          : null,
-      onTap: onTap,
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
+    return Container(
+      decoration: BoxDecoration(
+        color: surface,
+        border: Border(bottom: BorderSide(color: borderColor, width: 0.5)),
+      ),
+      child: Row(
         children: [
+          Container(width: 3, height: 60, color: AppTheme.accent.withValues(alpha: 0.3)),
+          Expanded(
+            child: InkWell(
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 8, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label,
+                        style: TextStyle(
+                            color: textColor,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                            letterSpacing: -0.3)),
+                    if (sub.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(sub,
+                          style:
+                              TextStyle(color: subtextColor, fontSize: 13)),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
           if (onMoveToFolder != null)
             IconButton(
-              icon: const Icon(Icons.folder_open, size: 20),
+              icon: Icon(Icons.drive_file_move_outlined,
+                  size: 18, color: subtextColor),
               onPressed: onMoveToFolder,
             ),
           IconButton(
-            icon: const Icon(Icons.delete_outline, color: Colors.red),
+            icon: const Icon(Icons.delete_outline_rounded,
+                color: Color(0xFFFF6B6B), size: 18),
             onPressed: onDelete,
           ),
         ],

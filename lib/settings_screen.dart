@@ -1,3 +1,4 @@
+import 'package:allset/app_theme.dart';
 import 'package:allset/pro/pro_profiles_screen.dart';
 import 'package:allset/providers/app_settings_provider.dart';
 import 'package:allset/providers/dark_mode_provider.dart';
@@ -13,32 +14,41 @@ class SettingsScreen extends ConsumerWidget {
     final darkMode = ref.watch(darkModeProvider);
     final settings = ref.watch(appSettingsProvider);
     final notifier = ref.read(appSettingsProvider.notifier);
-    final bgColor = darkMode ? Colors.black : Colors.white;
-    final fontColor = darkMode ? Colors.white : Colors.black;
+    final bgColor = AppTheme.bg(darkMode);
+    final fontColor = AppTheme.text(darkMode);
+    final subtextColor = AppTheme.subtext(darkMode);
+    final surface = AppTheme.surface(darkMode);
+    final borderColor = AppTheme.border(darkMode);
     final isPro = FeatureFlags.instance.isPro;
 
     return Scaffold(
-      body: Container(
-        color: bgColor,
-        child: SafeArea(
-          child: Column(
-            children: [
-              SizedBox(
-                height: 50,
-                child: Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close),
-                    ),
-                    Text('Settings',
-                        style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: fontColor)),
-                  ],
-                ),
+      backgroundColor: bgColor,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Container(
+              height: 56,
+              decoration: BoxDecoration(
+                color: surface,
+                border: Border(
+                    bottom: BorderSide(color: borderColor, width: 0.5)),
               ),
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: Icon(Icons.close_rounded,
+                        color: subtextColor),
+                  ),
+                  Text('Settings',
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: fontColor,
+                          letterSpacing: -0.3)),
+                ],
+              ),
+            ),
               Expanded(
                 child: ListView(
                   children: [
@@ -93,10 +103,8 @@ class SettingsScreen extends ConsumerWidget {
                         subtitle: Text('Composer / Publisher / PRO',
                             style: TextStyle(
                                 color: fontColor.withValues(alpha: 0.6))),
-                        onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const ProProfilesScreen())),
+                        onTap: () => Navigator.push(context,
+                            AppTheme.slideUp(const ProProfilesScreen())),
                       ),
                       const Divider(),
                       Padding(
@@ -157,7 +165,7 @@ class SettingsScreen extends ConsumerWidget {
             ],
           ),
         ),
-      ),
     );
   }
 }
+
